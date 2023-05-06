@@ -1,0 +1,132 @@
+#!/bin/bash
+is_rescue() {
+NHOST="$1"
+
+ssh root@$NHOST "test -e /root/.oldroot/nfs/install/installimage"
+if [ $? -eq 0 ]; then
+  return 1
+else
+  return 0
+fi
+}
+
+script_path() {
+  echo "$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"  
+}
+
+#FindaNdReplace
+fnr() {
+  if [[ ! -f $PBUILD/$3 ]]; then
+    cp $PDATA/$3 $PBUILD/$3
+  fi
+  awk -v a=$1 -v b=$2 'function esc(s){gsub("&","\\\\&",s); return s}; {gsub(a,esc(b))}1' "$PBUILD/$3" > /tmp/fnr.tmp
+  cp /tmp/fnr.tmp $PBUILD/$3 
+}
+
+# $1=<$DRIVE_NUMBER>
+with_drv() {
+  DCMD=""
+  WIPE_FS=""
+  NDRV="DRIVE$1"
+  eval "DRV=\$$NDRV"
+  if [[ "$DRV" != "" ]]; then
+    DCMD="$NDRV $DRV"
+    WIPE_FS="wipefs -af $DRV"
+  fi
+}
+
+### CONFIGURATION (do not change, override in .env file if needed)
+PROOT=$(script_path)
+PSEC="$PROOT/security"
+PDATA=$PROOT/deploy_data
+PPOST_INST=$PBUILD/post_install
+PBUILD=$PROOT/build
+FPOST_INSTALL="post_install"
+PBUILD_POST_INST=$PBUILD/$FPOST_INSTALL
+# path where installer will de be deployed in remote server
+PREMOTE="/tmp/install"
+
+HOST_NAME="vmbox.uplight.link"
+PSSH_PKEY="$PSEC/ssh-key/vmbox.pub"
+DRIVE1="/dev/sda"
+DRIVE2=""
+
+# override from env
+source $PROOT/.env
+
+# SCRIPT PARAMETERS
+NHOST="$1"
+if [[ "$NHOST" == "" ]]; then
+  echo "Usage: install <HOST>"
+  return
+fi
+
+# EXTRACT PWD
+ROOT_PWD=`cat $PSEC/root.pwd`
+CRYPT_PWD=`cat $PSEC/disk_enc.pwd`
+SSH_PKEY=`cat $PSSH_PKEY`
+SSH_PWD=`cat $PSEC/ssh.pwd`
+
+is_rescue $NHOST
+if [ $? -eq 0 ]; then
+  echo "Target HOST $NHOST is not a Hetzner Rescue system. Please reboot to Rescue Mode."
+  return
+fi
+
+### 1. BUILD
+
+with_drv 1
+D1_CMD=$DCMD
+D1_WIPE_FS=$WIPE_FS
+with_drv 2
+D2_CMD=$DCMD
+D2_WIPE_FS=$WIPE_FS
+
+rm -rf $PBUILD
+mkdir -p $PBUILD
+mkdir -p $PPOST_INST
+cp -R $PDATA/* $PBUILD/
+
+fnr '@CRYPT_PWD@' "$CRYPT_PWD" "setup.conf"
+fnr '@HOST_NAME@' "$HOST_NAME" "setup.conf"
+fnr '@DRIVE1@' "$D1_CMD" "setup.conf"
+fnr '@DRIVE2@' "$D2_CMD" "setup.conf"
+
+fnr '@PAUTH_KEYS@' "$PREMOTE/authorized_keys" "setup.conf"
+fnr '@SSH_PKEY@' "$SSH_PKEY" "authorized_keys"
+
+fnr '@SSH_PWD@' "$SSH_PWD" "cat_ssh_pwd"
+
+fnr '@PREMOTE@' "$PREMOTE" "hetzner_install"
+fnr '@WIPE_FS@' "$D1_WIPE_FS;$D2_WIPE_FS" "hetzner_install"
+
+fnr '@ROOT_PWD@' "$ROOT_PWD" "drive2_setup.sh"
+
+# SSH-ADD
+chmod 400 $PSEC/ssh-key/vmbox
+chmod +x $PBUILD/cat_ssh_pwd
+DISPLAY=1 SSH_ASKPASS="$PBUILD/cat_ssh_pwd" ssh-add $PSEC/ssh-key/vmbox < /dev/null
+
+cat $PBUILD_POST_INST/proxmox7 >> $PBUILD_POST_INST/post-install.sh
+cat $PBUILD_POST_INST/post_reboot >> $PBUILD_POST_INST/post-install.sh
+
+# TODO: this doesn't work due to hetzner/installimage script chroot. It fails at update-initrd command.
+# WORKAROUND: we'll put this to run after the post-install, in below code @WKRND
+# cat $PBUILD_POST_INST/drive2_setup.sh >> $PBUILD_POST_INST/post-install.sh
+
+$(cd $PBUILD && zip -r -q $PBUILD/install.zip ./*)
+
+### 2. INSTALL TO HETZNER
+ssh root@$NHOST << EOF
+	rm -rf $PREMOTE/*
+	mkdir -p $PREMOTE
+EOF
+
+scp $PBUILD/install.zip root@${NHOST}:${PREMOTE}
+
+ssh root@$NHOST << EOF
+	unzip $PREMOTE/install.zip -d $PREMOTE
+	. $PREMOTE/hetzner_install
+EOF
+
+ssh root@$NHOST less /root/debug.txt

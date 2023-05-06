@@ -1,0 +1,6 @@
+#!/bin/bash
+P=@PREMOTE@
+
+chmod +x $P/post_install/post-install.sh
+@WIPE_FS@
+/root/.oldroot/nfs/install/installimage -a -c $P/setup.conf -x $P/post_install/post-install.sh

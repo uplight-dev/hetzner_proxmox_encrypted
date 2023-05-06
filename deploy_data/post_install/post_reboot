@@ -1,0 +1,1 @@
+echo "@reboot @PREMOTE@/post_reboot && 
