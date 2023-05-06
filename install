@@ -113,11 +113,11 @@ DISPLAY=1 SSH_ASKPASS="$PBUILD/cat_ssh_pwd" ssh-add $PSEC/ssh-key/vmbox < /dev/n
 # ============== BUILD SCRIPTS in POST_INST and POST_REBOOT
 cat $PBUILD_POST_INST/proxmox7 >> $PBUILD_POST_INST/post-install.sh
 
-echo "cat >> /etc/init.d/post_reboot << EOF" >> $PBUILD_POST_REBOOT/post_reboot
+echo "cat >> /etc/init.d/post_reboot << PRB_EOF" >> $PBUILD_POST_REBOOT/post_reboot
 cat $PBUILD_POST_REBOOT/drive2_setup.sh >> $PBUILD_POST_REBOOT/post_reboot
 echo "rm -rf /etc/init.d/post_reboot" >> $PBUILD_POST_REBOOT/post_reboot
 echo "systemctl reboot" >> $PBUILD_POST_REBOOT/post_reboot
-echo "EOF" >> $PBUILD_POST_REBOOT/post_reboot
+echo "PRB_EOF" >> $PBUILD_POST_REBOOT/post_reboot
 
 cat $PBUILD_POST_REBOOT/post_reboot >> $PBUILD_POST_INST/post-install.sh
 
