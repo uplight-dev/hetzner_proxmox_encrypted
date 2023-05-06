@@ -7,6 +7,13 @@ It uses LUKS encryption for both the drives.
 git clone https://github.com/uplight-dev/hetzner_proxmox_encrypted.git
 cd hetzner_proxmox_encrypted
 
+mkdir security && cd security
+# generate strong passwords for:
+nano disk_enc.pwd ssh.pwd root.pwd
+
+# generate a ssh-key into security/ssh-keys with name vmbox
+ssh-keygen -C vmbox -f ssh-key/vmbox
+
 cp .env.example .env
 # adapt .env accordingly
 # start install
