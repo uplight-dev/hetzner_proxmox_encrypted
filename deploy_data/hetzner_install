@@ -1,5 +1,5 @@
 #!/bin/bash
-P=@PREMOTE@
+P=@PHZNR_ROOT@
 
 chmod +x $P/post_install/post-install.sh
 @WIPE_FS@

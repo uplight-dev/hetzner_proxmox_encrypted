@@ -1,3 +1,4 @@
 security
 build
 .env
+*.log
