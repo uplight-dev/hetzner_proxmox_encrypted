@@ -5,6 +5,10 @@ This script installs Proxmox 7 to a provided Hetzner BareMetal Host using RAID 0
 ```sh
 git clone https://github.com/uplight-dev/hetzner_proxmox_encrypted.git
 cd hetzner_proxmox_encrypted
+
+cp .env.example .env
+# adapt .env accordingly
+# start install
 . ./install <Hetzner_IP>
 ```
 
